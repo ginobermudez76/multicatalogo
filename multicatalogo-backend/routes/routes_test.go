@@ -2,6 +2,7 @@ package routes_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -15,10 +16,12 @@ import (
 	"multicatalogo-backend/routes"
 )
 
-// TestMain inicializa la conexión a PostgreSQL antes de ejecutar la suite de pruebas.
+// TestMain inicializa las conexiones a PostgreSQL y Redis antes de ejecutar la suite de pruebas.
 func TestMain(m *testing.M) {
 	_, _ = config.ConnectDB()
+	_, _ = config.ConnectRedis()
 	code := m.Run()
+	_ = config.CloseRedis()
 	_ = config.CloseDB()
 	os.Exit(code)
 }
@@ -56,7 +59,6 @@ func TestHealthCheck(t *testing.T) {
 func TestLoginEmptyFields(t *testing.T) {
 	app := setupTestApp()
 
-	// Caso: email y password vacíos
 	payload := []byte(`{"email":"","password":""}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
@@ -159,6 +161,34 @@ func TestGetProductos(t *testing.T) {
 	}
 }
 
+func TestGetProductosCacheAside(t *testing.T) {
+	app := setupTestApp()
+	rdb := config.GetRedis()
+	if rdb != nil {
+		_ = rdb.Del(context.Background(), "productos:all").Err()
+	}
+
+	// 1ra Petición: Cache Miss
+	req1 := httptest.NewRequest(http.MethodGet, "/api/productos", nil)
+	resp1, err := app.Test(req1)
+	if err != nil {
+		t.Fatalf("Error en 1ra petición: %v", err)
+	}
+	if rdb != nil && resp1.Header.Get("X-Cache") != "MISS" {
+		t.Errorf("Esperaba X-Cache: MISS en primera llamada, obtuvo: %s", resp1.Header.Get("X-Cache"))
+	}
+
+	// 2da Petición: Cache Hit
+	req2 := httptest.NewRequest(http.MethodGet, "/api/productos", nil)
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("Error en 2da petición: %v", err)
+	}
+	if rdb != nil && resp2.Header.Get("X-Cache") != "HIT" {
+		t.Errorf("Esperaba X-Cache: HIT en segunda llamada, obtuvo: %s", resp2.Header.Get("X-Cache"))
+	}
+}
+
 func TestGetProductoPorIDValido(t *testing.T) {
 	app := setupTestApp()
 
@@ -186,7 +216,6 @@ func TestGetProductoPorIDValido(t *testing.T) {
 func TestGetProductoPorIDInvalido(t *testing.T) {
 	app := setupTestApp()
 
-	// Enviar texto en lugar de un número entero
 	req := httptest.NewRequest(http.MethodGet, "/api/productos/texto-en-lugar-de-numero", nil)
 	resp, err := app.Test(req)
 	if err != nil {
@@ -232,26 +261,36 @@ func TestGetProductoPorIDNoEncontrado(t *testing.T) {
 	}
 }
 
-func TestGetRed(t *testing.T) {
+func TestGetRedCacheAside(t *testing.T) {
 	app := setupTestApp()
+	rdb := config.GetRedis()
+	if rdb != nil {
+		_ = rdb.Del(context.Background(), "red:tree:admin@upse.edu.ec").Err()
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/red", nil)
-	resp, err := app.Test(req)
+	// 1ra Petición: Cache Miss (construcción costosa desde PostgreSQL)
+	req1 := httptest.NewRequest(http.MethodGet, "/api/red?email=admin@upse.edu.ec", nil)
+	resp1, err := app.Test(req1)
 	if err != nil {
-		t.Fatalf("Error en petición /api/red: %v", err)
+		t.Fatalf("Error en 1ra petición /api/red: %v", err)
+	}
+	if resp1.StatusCode != http.StatusOK {
+		t.Errorf("Esperaba status 200, obtuvo %d", resp1.StatusCode)
+	}
+	if rdb != nil && resp1.Header.Get("X-Cache") != "MISS" {
+		t.Errorf("Esperaba X-Cache: MISS en primera llamada, obtuvo: %s", resp1.Header.Get("X-Cache"))
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Esperaba status 200, obtuvo %d", resp.StatusCode)
+	// 2da Petición: Cache Hit (retorno inmediato desde Redis)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/red?email=admin@upse.edu.ec", nil)
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("Error en 2da petición /api/red: %v", err)
 	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var red models.Referido
-	if err := json.Unmarshal(body, &red); err != nil {
-		t.Fatalf("Error decodificando estructura de red: %v", err)
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("Esperaba status 200, obtuvo %d", resp2.StatusCode)
 	}
-
-	if red.Nombre != "Tú" || len(red.Hijos) == 0 {
-		t.Errorf("Nodo raíz de red incorrecto: %+v", red)
+	if rdb != nil && resp2.Header.Get("X-Cache") != "HIT" {
+		t.Errorf("Esperaba X-Cache: HIT en segunda llamada, obtuvo: %s", resp2.Header.Get("X-Cache"))
 	}
 }

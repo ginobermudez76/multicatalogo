@@ -294,3 +294,113 @@ func TestGetRedCacheAside(t *testing.T) {
 		t.Errorf("Esperaba X-Cache: HIT en segunda llamada, obtuvo: %s", resp2.Header.Get("X-Cache"))
 	}
 }
+
+func TestCheckoutSuccess(t *testing.T) {
+	app := setupTestApp()
+
+	payload := models.CheckoutRequest{
+		Cliente: models.ClienteCheckout{
+			Nombre:    "María López",
+			Email:     "maria.lopez@example.com",
+			Ciudad:    "Guayaquil",
+			Direccion: "Av. 9 de Octubre 123",
+			Telefono:  "0991234567",
+		},
+		MetodoPago: "Tarjeta de crédito",
+		Items: []models.ItemCarrito{
+			{ID: 1, Nombre: "Serum Revitalizante", Cantidad: 2, Precio: 45.00},
+			{ID: 2, Nombre: "Crema Hidratante Pro", Cantidad: 1, Precio: 32.50},
+		},
+		Total: 122.50,
+	}
+
+	bodyBytes, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/checkout", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Error en petición /api/checkout: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Esperaba status 201 Created, obtuvo %d. Respuesta: %s", resp.StatusCode, string(respBody))
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var confirmado models.PedidoConfirmado
+	if err := json.Unmarshal(body, &confirmado); err != nil {
+		t.Fatalf("Error decodificando PedidoConfirmado: %v", err)
+	}
+
+	if confirmado.Numero == "" || len(confirmado.Numero) < 4 || confirmado.Numero[:3] != "MC-" {
+		t.Errorf("Número de pedido inválido: %s", confirmado.Numero)
+	}
+
+	if confirmado.Total != 122.50 {
+		t.Errorf("Total del pedido incorrecto: %f", confirmado.Total)
+	}
+
+	if len(confirmado.Items) != 2 {
+		t.Errorf("Cantidad de ítems incorrecta: %d", len(confirmado.Items))
+	}
+}
+
+func TestCheckoutEmptyItems(t *testing.T) {
+	app := setupTestApp()
+
+	payload := models.CheckoutRequest{
+		Cliente: models.ClienteCheckout{
+			Nombre: "Juan Pérez",
+			Email:  "juan@example.com",
+			Ciudad: "Quito",
+		},
+		MetodoPago: "Efectivo contra entrega",
+		Items:      []models.ItemCarrito{}, // Carrito vacío
+		Total:      100.0,
+	}
+
+	bodyBytes, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/checkout", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Error en petición /api/checkout: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Esperaba status 400 para carrito vacío, obtuvo %d", resp.StatusCode)
+	}
+}
+
+func TestCheckoutMissingClientInfo(t *testing.T) {
+	app := setupTestApp()
+
+	payload := models.CheckoutRequest{
+		Cliente: models.ClienteCheckout{
+			Nombre: "", // Nombre vacío
+			Email:  "",
+		},
+		MetodoPago: "Transferencia bancaria",
+		Items: []models.ItemCarrito{
+			{ID: 1, Nombre: "Serum Revitalizante", Cantidad: 1, Precio: 45.00},
+		},
+		Total: 45.0,
+	}
+
+	bodyBytes, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/api/checkout", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Error en petición /api/checkout: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Esperaba status 400 para cliente con campos requeridos vacíos, obtuvo %d", resp.StatusCode)
+	}
+}
+

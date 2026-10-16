@@ -8,27 +8,35 @@ import (
 	"strconv"
 	"time"
 
-	// Importamos Fiber para manejar el contexto y respuestas HTTP.
 	"github.com/gofiber/fiber/v2"
-	// Importamos nuestro paquete config para acceder a Redis.
 	"multicatalogo-backend/config"
-	// Importamos nuestro paquete de modelos para usar la estructura APIError.
 	"multicatalogo-backend/models"
-	// Importamos el repositorio para acceder a la capa de datos de productos.
 	"multicatalogo-backend/repository"
 )
 
-// GetProductos es la función controladora encargada de devolver el catálogo completo de artículos.
-// Implementa el patrón Cache-Aside con Redis (clave 'productos:all' y TTL de 5 minutos).
-func GetProductos(c *fiber.Ctx) error {
-	redisClient := config.GetRedis()
+// ProdController gestiona las operaciones del catálogo de productos con Inyección de Dependencias.
+type ProdController struct {
+	repo  repository.DBRepository
+	cache config.CacheService
+}
+
+// NewProdController es el constructor que inyecta el repositorio de base de datos y el servicio de caché.
+func NewProdController(repo repository.DBRepository, cache config.CacheService) *ProdController {
+	return &ProdController{
+		repo:  repo,
+		cache: cache,
+	}
+}
+
+// GetProductos devuelve el catálogo completo de artículos implementando el patrón Cache-Aside con Redis.
+func (pc *ProdController) GetProductos(c *fiber.Ctx) error {
 	ctx := context.Background()
 	cacheKey := "productos:all"
 
-	// 1. Intento de lectura desde Redis (Cache-Aside: Cache Hit)
-	if redisClient != nil {
-		cachedBytes, err := redisClient.Get(ctx, cacheKey).Bytes()
-		if err == nil {
+	// 1. Intento de lectura desde Redis (Cache Hit)
+	if pc.cache != nil {
+		cachedBytes, err := pc.cache.Get(ctx, cacheKey)
+		if err == nil && len(cachedBytes) > 0 {
 			var productos []models.Producto
 			if err := json.Unmarshal(cachedBytes, &productos); err == nil {
 				c.Set("X-Cache", "HIT")
@@ -38,7 +46,7 @@ func GetProductos(c *fiber.Ctx) error {
 	}
 
 	// 2. Cache Miss: Consultamos la base de datos relacional PostgreSQL
-	productos, err := repository.ObtenerProductos()
+	productos, err := pc.repo.ObtenerProductos()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
 			Status:  fiber.StatusInternalServerError,
@@ -48,9 +56,9 @@ func GetProductos(c *fiber.Ctx) error {
 	}
 
 	// 3. Almacenamos en caché de Redis con un TTL de 5 minutos
-	if redisClient != nil {
+	if pc.cache != nil {
 		if jsonData, err := json.Marshal(productos); err == nil {
-			_ = redisClient.Set(ctx, cacheKey, jsonData, 5*time.Minute).Err()
+			_ = pc.cache.Set(ctx, cacheKey, jsonData, 5*time.Minute)
 		}
 	}
 
@@ -58,15 +66,12 @@ func GetProductos(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(productos)
 }
 
-// GetProductoPorID es la función controladora encargada de buscar y retornar un producto por su ID.
-func GetProductoPorID(c *fiber.Ctx) error {
-	// Extraemos el parámetro 'id' de la URL.
+// GetProductoPorID busca y retorna un producto por su clave primaria numérica.
+func (pc *ProdController) GetProductoPorID(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 
-	// Convertimos el parámetro textual a entero (int).
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		// Si la conversión falla (ej. se envió texto en lugar de número), retornamos HTTP 400 con APIError.
 		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
 			Status:  fiber.StatusBadRequest,
 			Message: "El parámetro ID debe ser un número entero válido",
@@ -74,8 +79,7 @@ func GetProductoPorID(c *fiber.Ctx) error {
 		})
 	}
 
-	// Buscamos el producto en la base de datos a través del repositorio.
-	producto, err := repository.ObtenerProductoPorID(id)
+	producto, err := pc.repo.ObtenerProductoPorID(id)
 	if err != nil {
 		if errors.Is(err, repository.ErrProductoNoEncontrado) {
 			return c.Status(fiber.StatusNotFound).JSON(models.APIError{
@@ -90,6 +94,16 @@ func GetProductoPorID(c *fiber.Ctx) error {
 		})
 	}
 
-	// Si fue encontrado, retornamos HTTP 200 con el producto en formato JSON.
 	return c.Status(fiber.StatusOK).JSON(producto)
+}
+
+// Funciones libres para retrocompatibilidad
+func GetProductos(c *fiber.Ctx) error {
+	ctrl := NewProdController(repository.NewPostgresRepository(config.GetDB()), config.NewRedisCacheService(config.GetRedis()))
+	return ctrl.GetProductos(c)
+}
+
+func GetProductoPorID(c *fiber.Ctx) error {
+	ctrl := NewProdController(repository.NewPostgresRepository(config.GetDB()), config.NewRedisCacheService(config.GetRedis()))
+	return ctrl.GetProductoPorID(c)
 }

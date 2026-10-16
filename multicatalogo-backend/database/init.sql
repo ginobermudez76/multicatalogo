@@ -1,4 +1,4 @@
--- Script de inicialización de Base de Datos para MultiCatálogo (Fase 2)
+-- Script de inicialización de Base de Datos para MultiCatálogo (Fases 2, 3 y 4)
 -- Base de datos: multicatalogo
 
 -- 1. Tabla de Usuarios
@@ -27,6 +27,31 @@ CREATE TABLE IF NOT EXISTS referidos (
     nivel INT NOT NULL,
     ventas NUMERIC(10, 2) NOT NULL DEFAULT 0,
     parent_id INT REFERENCES referidos(id) ON DELETE SET NULL
+);
+
+-- 4. Tabla de Pedidos (Fase 4 - Transacciones ACID)
+CREATE TABLE IF NOT EXISTS pedidos (
+    id SERIAL PRIMARY KEY,
+    numero VARCHAR(50) UNIQUE NOT NULL,
+    cliente_nombre VARCHAR(255) NOT NULL,
+    cliente_email VARCHAR(255) NOT NULL,
+    cliente_ciudad VARCHAR(255) NOT NULL,
+    cliente_direccion VARCHAR(255),
+    cliente_telefono VARCHAR(50),
+    metodo_pago VARCHAR(100) NOT NULL,
+    total NUMERIC(10, 2) NOT NULL,
+    fecha TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Tabla de Items de Pedido (Fase 4 - Transacciones ACID)
+CREATE TABLE IF NOT EXISTS pedido_items (
+    id SERIAL PRIMARY KEY,
+    pedido_id INT REFERENCES pedidos(id) ON DELETE CASCADE,
+    producto_id INT REFERENCES productos(id) ON DELETE SET NULL,
+    nombre VARCHAR(255) NOT NULL,
+    cantidad INT NOT NULL,
+    precio NUMERIC(10, 2) NOT NULL,
+    subtotal NUMERIC(10, 2) NOT NULL
 );
 
 -- Poblar tabla de Usuarios

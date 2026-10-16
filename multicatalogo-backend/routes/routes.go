@@ -1,25 +1,56 @@
-// Declaramos el paquete routes, cuya única responsabilidad es registrar los endpoints de la API.
+// Declaramos el paquete routes, encargado de registrar los endpoints de la API con Inyección de Dependencias.
 package routes
 
 import (
-	// Importamos Fiber para poder recibir y configurar la instancia principal de la aplicación.
 	"github.com/gofiber/fiber/v2"
-	// Importamos nuestro paquete de controladores, donde residen las funciones que se ejecutarán en cada ruta.
+	"multicatalogo-backend/config"
 	"multicatalogo-backend/controllers"
+	"multicatalogo-backend/repository"
 )
 
-// SetupRoutes es una función que recibe un puntero a la aplicación Fiber (*fiber.App) para inyectarle las rutas.
-func SetupRoutes(app *fiber.App) {
-	// Endpoint de comprobación de salud del servidor (Health Check)
-	app.Get("/api/health", controllers.HealthCheck)
+// Dependencies agrupa las instancias de controladores inyectadas al arrancar el servidor.
+type Dependencies struct {
+	AuthCtrl     *controllers.AuthController
+	ProdCtrl     *controllers.ProdController
+	RedCtrl      *controllers.RedController
+	CheckoutCtrl *controllers.CheckoutController
+	HealthCtrl   *controllers.HealthController
+}
 
-	// Definimos una ruta HTTP POST en "/api/login" y la enlazamos a la función Login.
-	app.Post("/api/login", controllers.Login)
+// SetupRoutes registra todos los endpoints de la API en la aplicación Fiber.
+func SetupRoutes(app *fiber.App, deps ...Dependencies) {
+	var d Dependencies
+	if len(deps) > 0 {
+		d = deps[0]
+	} else {
+		// Instanciación automática si no se proporcionan dependencias explícitas
+		db := config.GetDB()
+		redisClient := config.GetRedis()
+		repo := repository.NewPostgresRepository(db)
+		cache := config.NewRedisCacheService(redisClient)
 
-	// Definimos rutas HTTP para el catálogo de productos relacional.
-	app.Get("/api/productos", controllers.GetProductos)
-	app.Get("/api/productos/:id", controllers.GetProductoPorID)
+		d = Dependencies{
+			AuthCtrl:     controllers.NewAuthController(repo),
+			ProdCtrl:     controllers.NewProdController(repo, cache),
+			RedCtrl:      controllers.NewRedController(repo, cache),
+			CheckoutCtrl: controllers.NewCheckoutController(repo, cache),
+			HealthCtrl:   controllers.NewHealthController(),
+		}
+	}
 
-	// Definimos la ruta HTTP para la red multinivel de referidos desde PostgreSQL.
-	app.Get("/api/red", controllers.GetRed)
+	// 1. Endpoint de verificación de salud
+	app.Get("/api/health", d.HealthCtrl.HealthCheck)
+
+	// 2. Endpoints de autenticación
+	app.Post("/api/login", d.AuthCtrl.Login)
+
+	// 3. Endpoints del catálogo de productos (Cache-Aside en Redis)
+	app.Get("/api/productos", d.ProdCtrl.GetProductos)
+	app.Get("/api/productos/:id", d.ProdCtrl.GetProductoPorID)
+
+	// 4. Endpoint de red multinivel de referidos (Cache-Aside en Redis)
+	app.Get("/api/red", d.RedCtrl.GetRed)
+
+	// 5. Endpoint de checkout y compra (Transacciones ACID en PostgreSQL y Goroutines)
+	app.Post("/api/checkout", d.CheckoutCtrl.Checkout)
 }

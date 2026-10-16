@@ -1,28 +1,27 @@
 // Declaramos el paquete models para agrupar las estructuras de datos de la aplicación.
 package models
 
+import "time"
+
 // APIError estandariza la estructura de los mensajes de error HTTP en la API.
-// Contiene Status (código HTTP numérico), Message (descripción general legible) y Details (información técnica u opcional).
 type APIError struct {
 	Status  int         `json:"status"`
 	Message string      `json:"message"`
 	Details interface{} `json:"details,omitempty"`
 }
 
-// Error implementa la interfaz error estándar de Go para permitir usar APIError como error nativo.
+// Error implementa la interfaz error estándar de Go.
 func (e APIError) Error() string {
 	return e.Message
 }
 
 // LoginRequest define la estructura esperada para el cuerpo de la petición (JSON) al iniciar sesión.
 type LoginRequest struct {
-	// Email representa el correo del usuario; la etiqueta `json:"email"` indica cómo se mapea el JSON a esta variable.
-	Email string `json:"email"`
-	// Password representa la contraseña del usuario; se extrae del campo "password" del JSON entrante.
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// LoginResponse representa la estructura de datos que se retorna tras una autenticación exitosa.
+// LoginResponse representa la respuesta retornada tras una autenticación exitosa.
 type LoginResponse struct {
 	Token string `json:"token"`
 	Email string `json:"email"`
@@ -39,20 +38,13 @@ type Usuario struct {
 
 // Producto define la estructura de los datos de un artículo en nuestro catálogo relacional.
 type Producto struct {
-	// ID es el identificador único numérico del producto en la base de datos.
-	ID int `json:"id"`
-	// Nombre es la descripción comercial en texto del producto.
-	Nombre string `json:"nombre"`
-	// Descripcion es el texto detallado sobre los beneficios y uso del producto.
-	Descripcion string `json:"descripcion,omitempty"`
-	// Precio es el costo del producto, almacenado como número con decimales (float64).
-	Precio float64 `json:"precio"`
-	// Categoria clasifica el tipo de producto (Serum, Crema, Tónico, Mascarilla, Kit).
-	Categoria string `json:"categoria,omitempty"`
-	// Img es la URL de la fotografía principal del producto.
-	Img string `json:"img"`
-	// Galeria contiene el arreglo de URLs de fotografías adicionales del producto.
-	Galeria []string `json:"galeria,omitempty"`
+	ID          int      `json:"id"`
+	Nombre      string   `json:"nombre"`
+	Descripcion string   `json:"descripcion,omitempty"`
+	Precio      float64  `json:"precio"`
+	Categoria   string   `json:"categoria,omitempty"`
+	Img         string   `json:"img"`
+	Galeria     []string `json:"galeria,omitempty"`
 }
 
 // Referido representa un nodo en el árbol de la red multinivel de referidos.
@@ -63,4 +55,53 @@ type Referido struct {
 	Ventas   float64    `json:"ventas"`
 	ParentID *int       `json:"parent_id,omitempty"`
 	Hijos    []Referido `json:"hijos,omitempty"`
+}
+
+// ItemCarrito representa un ítem comprado dentro del carrito de compras.
+type ItemCarrito struct {
+	ID       int     `json:"id,omitempty"`
+	Nombre   string  `json:"nombre"`
+	Cantidad int     `json:"cantidad"`
+	Precio   float64 `json:"precio"`
+}
+
+// ClienteCheckout contiene los datos del comprador enviados desde Checkout.tsx.
+type ClienteCheckout struct {
+	Nombre    string `json:"nombre"`
+	Email     string `json:"email"`
+	Direccion string `json:"direccion,omitempty"`
+	Ciudad    string `json:"ciudad,omitempty"`
+	Telefono  string `json:"telefono,omitempty"`
+}
+
+// CheckoutRequest es el cuerpo JSON que recibe el endpoint POST /api/checkout.
+type CheckoutRequest struct {
+	Cliente    ClienteCheckout `json:"cliente"`
+	MetodoPago string          `json:"metodoPago"`
+	Items      []ItemCarrito   `json:"items"`
+	Total      float64         `json:"total"`
+}
+
+// PedidoConfirmado representa la respuesta estructurada tras procesar la orden exitosamente.
+// Su forma coincide con la estructura requerida por el componente Confirmacion.tsx.
+type PedidoConfirmado struct {
+	Numero  string          `json:"numero"`
+	Items   []ItemCarrito   `json:"items"`
+	Total   float64         `json:"total"`
+	Cliente ClienteCheckout `json:"cliente"`
+	Fecha   string          `json:"fecha"`
+}
+
+// Pedido representa la fila en la tabla relacional 'pedidos' de PostgreSQL.
+type Pedido struct {
+	ID               int       `json:"id"`
+	Numero           string    `json:"numero"`
+	ClienteNombre    string    `json:"cliente_nombre"`
+	ClienteEmail     string    `json:"cliente_email"`
+	ClienteCiudad    string    `json:"cliente_ciudad"`
+	ClienteDireccion string    `json:"cliente_direccion"`
+	ClienteTelefono  string    `json:"cliente_telefono"`
+	MetodoPago       string    `json:"metodo_pago"`
+	Total            float64   `json:"total"`
+	Fecha            time.Time `json:"fecha"`
 }

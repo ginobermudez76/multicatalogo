@@ -5,22 +5,26 @@ import (
 	"errors"
 	"strings"
 
-	// Importamos el framework Fiber para tener acceso al contexto (c *fiber.Ctx) de la petición HTTP.
 	"github.com/gofiber/fiber/v2"
-	// Importamos nuestro paquete de modelos para poder usar LoginRequest y APIError.
 	"multicatalogo-backend/models"
-	// Importamos el repositorio para delegar la autenticación de usuarios.
 	"multicatalogo-backend/repository"
 )
 
-// Login es la función controladora que se ejecutará cuando el cliente envíe sus credenciales.
-func Login(c *fiber.Ctx) error {
-	// Creamos una variable 'req' del tipo LoginRequest para almacenar los datos recibidos.
+// AuthController gestiona la autenticación con Inyección de Dependencias (Fase 4).
+type AuthController struct {
+	repo repository.DBRepository
+}
+
+// NewAuthController crea una nueva instancia de AuthController inyectándole el repositorio.
+func NewAuthController(repo repository.DBRepository) *AuthController {
+	return &AuthController{repo: repo}
+}
+
+// Login es el método controlador que se ejecuta cuando el cliente envía sus credenciales.
+func (ac *AuthController) Login(c *fiber.Ctx) error {
 	var req models.LoginRequest
 
-	// Intentamos parsear (transformar) el cuerpo JSON entrante y guardarlo en la variable 'req'.
 	if err := c.BodyParser(&req); err != nil {
-		// Si ocurre un error al parsear (ej. JSON mal formado), retornamos HTTP 400 con APIError.
 		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
 			Status:  fiber.StatusBadRequest,
 			Message: "Cuerpo de petición inválido",
@@ -28,7 +32,6 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validamos explícitamente que los campos Email y Password no vengan vacíos antes de enviarlos al repositorio.
 	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.Password) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
 			Status:  fiber.StatusBadRequest,
@@ -36,8 +39,7 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Delegamos la validación de credenciales a la capa del repositorio con PostgreSQL.
-	userAuth, err := repository.AuthenticateUser(req.Email, req.Password)
+	userAuth, err := ac.repo.AuthenticateUser(req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, repository.ErrCredencialesInvalidas) {
 			return c.Status(fiber.StatusUnauthorized).JSON(models.APIError{
@@ -52,6 +54,11 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Si la autenticación es exitosa, retornamos HTTP 200 con el token, correo y rol.
 	return c.Status(fiber.StatusOK).JSON(userAuth)
+}
+
+// Login función libre para retrocompatibilidad
+func Login(c *fiber.Ctx) error {
+	ctrl := NewAuthController(repository.NewPostgresRepository(nil))
+	return ctrl.Login(c)
 }

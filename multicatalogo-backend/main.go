@@ -11,37 +11,52 @@ import (
 	"github.com/gofiber/fiber/v2"
 	// Importamos el middleware CORS para gestionar la seguridad entre distintos puertos/dominios.
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	// Importamos nuestro paquete config para inicializar la conexión con PostgreSQL y Redis.
+	// Importamos los paquetes de configuración, controladores, repositorios y rutas.
 	"multicatalogo-backend/config"
-	// Importamos nuestro propio paquete de rutas para delegarle la configuración de los endpoints.
+	"multicatalogo-backend/controllers"
+	"multicatalogo-backend/repository"
 	"multicatalogo-backend/routes"
 )
 
 // func main es el punto de entrada de la aplicación en Go. Todo comienza a ejecutarse aquí.
 func main() {
-	// Inicializamos el pool de conexiones a la base de datos PostgreSQL (Fase 2)
-	if _, err := config.ConnectDB(); err != nil {
+	// 1. Inicializamos el pool de conexiones a la base de datos PostgreSQL (Fase 2)
+	db, err := config.ConnectDB()
+	if err != nil {
 		log.Fatalf("Error crítico al inicializar la base de datos: %v", err)
 	}
 	defer config.CloseDB()
 
-	// Inicializamos el cliente de Redis para almacenamiento en caché (Fase 3)
-	if _, err := config.ConnectRedis(); err != nil {
+	// 2. Inicializamos el cliente de Redis para almacenamiento en caché (Fase 3)
+	redisClient, err := config.ConnectRedis()
+	if err != nil {
 		log.Printf("Aviso: No se pudo conectar a Redis (%v). El servidor continuará sin caché", err)
 	}
 	defer config.CloseRedis()
 
-	// Instanciamos una nueva aplicación de Fiber y la guardamos en la variable 'app'.
+	// 3. Inyección de Dependencias (Fase 4 - Paso 1)
+	repo := repository.NewPostgresRepository(db)
+	cacheService := config.NewRedisCacheService(redisClient)
+
+	deps := routes.Dependencies{
+		AuthCtrl:     controllers.NewAuthController(repo),
+		ProdCtrl:     controllers.NewProdController(repo, cacheService),
+		RedCtrl:      controllers.NewRedController(repo, cacheService),
+		CheckoutCtrl: controllers.NewCheckoutController(repo, cacheService),
+		HealthCtrl:   controllers.NewHealthController(),
+	}
+
+	// 4. Instanciamos la aplicación de Fiber
 	app := fiber.New()
 
-	// Implementamos el middleware CORS a nivel global usando app.Use() para interceptar todas las peticiones entrantes.
+	// Implementamos el middleware CORS a nivel global
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:5173, http://127.0.0.1:5173",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-Email",
 	}))
 
-	// Llamamos a la función SetupRoutes de nuestro paquete 'routes', enviándole la instancia de nuestra 'app'.
-	routes.SetupRoutes(app)
+	// Registramos las rutas inyectando las dependencias estructuradas
+	routes.SetupRoutes(app, deps)
 
 	port := os.Getenv("PORT")
 	if port == "" {

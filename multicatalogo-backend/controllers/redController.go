@@ -13,10 +13,22 @@ import (
 	"multicatalogo-backend/repository"
 )
 
-// GetRed es la función controladora encargada de devolver la estructura de árbol de la red de referidos.
-// Implementa el patrón Cache-Aside con Redis bajo la clave 'red:tree:{email_usuario}' con un TTL de 10 minutos.
-func GetRed(c *fiber.Ctx) error {
-	// Determinamos el email del usuario para particionar la clave de caché
+// RedController gestiona las operaciones de la red multinivel con Inyección de Dependencias.
+type RedController struct {
+	repo  repository.DBRepository
+	cache config.CacheService
+}
+
+// NewRedController crea una nueva instancia inyectándole el repositorio y la caché.
+func NewRedController(repo repository.DBRepository, cache config.CacheService) *RedController {
+	return &RedController{
+		repo:  repo,
+		cache: cache,
+	}
+}
+
+// GetRed devuelve la estructura de árbol de la red de referidos con optimización de caché Redis.
+func (rc *RedController) GetRed(c *fiber.Ctx) error {
 	email := c.Query("email")
 	if email == "" {
 		email = c.Get("X-User-Email")
@@ -26,13 +38,12 @@ func GetRed(c *fiber.Ctx) error {
 	}
 
 	cacheKey := fmt.Sprintf("red:tree:%s", email)
-	redisClient := config.GetRedis()
 	ctx := context.Background()
 
 	// 1. Intento de lectura desde Redis (Cache Hit)
-	if redisClient != nil {
-		cachedBytes, err := redisClient.Get(ctx, cacheKey).Bytes()
-		if err == nil {
+	if rc.cache != nil {
+		cachedBytes, err := rc.cache.Get(ctx, cacheKey)
+		if err == nil && len(cachedBytes) > 0 {
 			var red models.Referido
 			if err := json.Unmarshal(cachedBytes, &red); err == nil {
 				c.Set("X-Cache", "HIT")
@@ -41,8 +52,8 @@ func GetRed(c *fiber.Ctx) error {
 		}
 	}
 
-	// 2. Cache Miss: Reconstrucción costosa del árbol relacional desde PostgreSQL
-	red, err := repository.ObtenerRed()
+	// 2. Cache Miss: Reconstrucción desde PostgreSQL
+	red, err := rc.repo.ObtenerRed()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
 			Status:  fiber.StatusInternalServerError,
@@ -51,13 +62,19 @@ func GetRed(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Almacenamos el árbol resultante en Redis con TTL de 10 minutos
-	if redisClient != nil {
+	// 3. Almacenamiento en caché de Redis con TTL de 10 minutos
+	if rc.cache != nil {
 		if jsonData, err := json.Marshal(red); err == nil {
-			_ = redisClient.Set(ctx, cacheKey, jsonData, 10*time.Minute).Err()
+			_ = rc.cache.Set(ctx, cacheKey, jsonData, 10*time.Minute)
 		}
 	}
 
 	c.Set("X-Cache", "MISS")
 	return c.Status(fiber.StatusOK).JSON(red)
+}
+
+// GetRed función libre para retrocompatibilidad
+func GetRed(c *fiber.Ctx) error {
+	ctrl := NewRedController(repository.NewPostgresRepository(config.GetDB()), config.NewRedisCacheService(config.GetRedis()))
+	return ctrl.GetRed(c)
 }

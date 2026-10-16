@@ -11,6 +11,10 @@ import Carrito from './components/Carrito';
 import Checkout from './components/Checkout';
 import Confirmacion from './components/Confirmacion';
 import Login from './components/Login';
+import Registro from './components/Registro';
+import MisPedidos from './components/MisPedidos';
+import AdminProductos from './components/AdminProductos';
+import AdminPedidos from './components/AdminPedidos';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -60,25 +64,29 @@ function App() {
       <CartBoundary> {/* Proveedor del Carrito (uno por usuario) */}
         <BrowserRouter>
           <Routes>
-            {/* Ruta pública */}
+            {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Registro />} />
 
             {/* Rutas protegidas (requieren login) */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Layout />}>
-                {/* Solo administrador: Dashboard y Red multinivel */}
+                {/* Solo administrador: Dashboard, Gestión de Productos y Gestión de Pedidos */}
                 <Route element={<AdminRoute />}>
                   <Route index element={<Dashboard />} />
-                  <Route path="mi-red" element={<MiRed />} />
+                  <Route path="admin/productos" element={<AdminProductos />} />
+                  <Route path="admin/pedidos" element={<AdminPedidos />} />
                 </Route>
 
-                {/* Ambos roles: flujo de compra en línea */}
+                {/* Ambos roles (cliente y admin): flujo de compra, red propia y pedidos */}
                 <Route path="tienda" element={<Storefront />} />
                 <Route path="catalogo" element={<Catalogo />} />
                 <Route path="producto/:id" element={<DetalleProducto />} />
                 <Route path="carrito" element={<Carrito />} />
                 <Route path="checkout" element={<Checkout />} />
                 <Route path="confirmacion" element={<Confirmacion />} />
+                <Route path="mi-red" element={<MiRed />} />
+                <Route path="mis-pedidos" element={<MisPedidos />} />
               </Route>
             </Route>
 

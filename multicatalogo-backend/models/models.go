@@ -30,10 +30,14 @@ type LoginResponse struct {
 
 // Usuario define la entidad de usuario mapeada con la tabla 'usuarios' en PostgreSQL.
 type Usuario struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"-"`
-	Rol      string `json:"rol"`
+	ID         int       `json:"id"`
+	Email      string    `json:"email"`
+	Password   string    `json:"-"`
+	Rol        string    `json:"rol"`
+	Nombre     string    `json:"nombre,omitempty"`
+	Activo     bool      `json:"activo"`
+	ReferidoID *int      `json:"referido_id,omitempty"`
+	CreadoEn   time.Time `json:"creado_en,omitempty"`
 }
 
 // Producto define la estructura de los datos de un artículo en nuestro catálogo relacional.
@@ -45,6 +49,8 @@ type Producto struct {
 	Categoria   string   `json:"categoria,omitempty"`
 	Img         string   `json:"img"`
 	Galeria     []string `json:"galeria,omitempty"`
+	Activo      bool     `json:"activo"`
+	Stock       int      `json:"stock"`
 }
 
 // Referido representa un nodo en el árbol de la red multinivel de referidos.
@@ -55,6 +61,7 @@ type Referido struct {
 	Ventas   float64    `json:"ventas"`
 	ParentID *int       `json:"parent_id,omitempty"`
 	Hijos    []Referido `json:"hijos,omitempty"`
+	Codigo   string     `json:"codigo,omitempty"`
 }
 
 // ItemCarrito representa un ítem comprado dentro del carrito de compras.
@@ -104,4 +111,82 @@ type Pedido struct {
 	MetodoPago       string    `json:"metodo_pago"`
 	Total            float64   `json:"total"`
 	Fecha            time.Time `json:"fecha"`
+	Estado           string    `json:"estado"`
+	UsuarioID        *int      `json:"usuario_id,omitempty"`
+}
+
+// PedidoItem representa un ítem de pedido con información del producto.
+type PedidoItem struct {
+	ID         int     `json:"id"`
+	PedidoID   int     `json:"pedido_id"`
+	ProductoID *int    `json:"producto_id,omitempty"`
+	Nombre     string  `json:"nombre"`
+	Cantidad   int     `json:"cantidad"`
+	Precio     float64 `json:"precio"`
+	Subtotal   float64 `json:"subtotal"`
+}
+
+// Comision representa una comisión en el ledger.
+type Comision struct {
+	ID           int       `json:"id"`
+	PedidoID     int       `json:"pedido_id"`
+	ReferidoID   int       `json:"referido_id"`
+	Nivel        int       `json:"nivel"`
+	Porcentaje   float64   `json:"porcentaje"`
+	Monto        float64   `json:"monto"`
+	Estado       string    `json:"estado"`
+	LiquidacionID *int     `json:"liquidacion_id,omitempty"`
+	CreadoEn     time.Time `json:"creado_en"`
+}
+
+// Liquidacion representa una liquidación de comisiones a un distribuidor.
+type Liquidacion struct {
+	ID         int       `json:"id"`
+	ReferidoID int       `json:"referido_id"`
+	Total      float64   `json:"total"`
+	Estado     string    `json:"estado"`
+	CreadoEn   time.Time `json:"creado_en"`
+	PagadaEn   *time.Time `json:"pagada_en,omitempty"`
+}
+
+// RegisterRequest define la estructura para registro de usuarios.
+type RegisterRequest struct {
+	Nombre   string `json:"nombre"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Ref      string `json:"ref,omitempty"`
+}
+
+// PaginaResponse estandariza la respuesta paginada.
+type PaginaResponse struct {
+	Data  interface{} `json:"data"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
+	Total int         `json:"total"`
+}
+
+// ReporteResumen contiene KPIs de ventas y comisiones.
+type ReporteResumen struct {
+	TotalVendido    float64 `json:"total_vendido"`
+	NumPedidos      int     `json:"num_pedidos"`
+	TicketPromedio  float64 `json:"ticket_promedio"`
+	ComisionesDev   float64 `json:"comisiones_devengadas"`
+}
+
+// TopProducto representa un producto en el reporte de top ventas.
+type TopProducto struct {
+	ID          int     `json:"id"`
+	Nombre      string  `json:"nombre"`
+	Categoria   string  `json:"categoria"`
+	Cantidad    int     `json:"cantidad"`
+	TotalVenta  float64 `json:"total_venta"`
+}
+
+// TopReferido representa un referido en el reporte de top vendedores.
+type TopReferido struct {
+	ID       int     `json:"id"`
+	Nombre   string  `json:"nombre"`
+	Nivel    int     `json:"nivel"`
+	Ventas   float64 `json:"ventas"`
+	NumPedidos int   `json:"num_pedidos"`
 }

@@ -39,11 +39,16 @@ func main() {
 	cacheService := config.NewRedisCacheService(redisClient)
 
 	deps := routes.Dependencies{
-		AuthCtrl:     controllers.NewAuthController(repo),
-		ProdCtrl:     controllers.NewProdController(repo, cacheService),
-		RedCtrl:      controllers.NewRedController(repo, cacheService),
-		CheckoutCtrl: controllers.NewCheckoutController(repo, cacheService),
-		HealthCtrl:   controllers.NewHealthController(),
+		AuthCtrl:           controllers.NewAuthController(repo),
+		ProdCtrl:           controllers.NewProdController(repo, cacheService),
+		RedCtrl:            controllers.NewRedController(repo, cacheService),
+		CheckoutCtrl:       controllers.NewCheckoutController(repo, cacheService),
+		HealthCtrl:         controllers.NewHealthController(),
+		UsuarioCtrl:        controllers.NewUsuarioController(repo),
+		ProductoAdminCtrl:  controllers.NewProductoAdminController(repo, cacheService),
+		PedidoCtrl:         controllers.NewPedidoController(repo),
+		ComisionCtrl:       controllers.NewComisionController(repo, cacheService),
+		ReporteCtrl:        controllers.NewReporteController(repo),
 	}
 
 	// 4. Instanciamos la aplicación de Fiber
@@ -60,7 +65,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3001"
+		port = "3002"
 	}
 
 	// Manejo de señales del sistema para apagado controlado (Graceful Shutdown)

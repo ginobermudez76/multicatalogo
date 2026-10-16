@@ -8,6 +8,7 @@ export interface Referido {
   nombre: string;
   nivel: number;     // 1 = directo, 2 = indirecto, 3 = tercer nivel
   ventas: number;    // ventas mensuales en dólares
+  codigo?: string;   // código único para link de invitación MLM
   hijos?: Referido[]; // referidos de un nivel más abajo
 }
 

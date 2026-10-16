@@ -47,6 +47,12 @@ func (ac *AuthController) Login(c *fiber.Ctx) error {
 				Message: "Credenciales incorrectas",
 			})
 		}
+		if strings.Contains(err.Error(), "cuenta desactivada") {
+			return c.Status(fiber.StatusForbidden).JSON(models.APIError{
+				Status:  fiber.StatusForbidden,
+				Message: "Cuenta desactivada",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
 			Status:  fiber.StatusInternalServerError,
 			Message: "Error interno al verificar credenciales en la base de datos",

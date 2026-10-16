@@ -1,9 +1,9 @@
 // src/components/Login.tsx
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth, type Rol } from "../context/AuthContext";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const Login = () => {
   const [email, setEmail] = useState<string>("");
@@ -24,12 +24,18 @@ const Login = () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     })
-      .then((response) => {
-        if (!response.ok) throw new Error("Credenciales incorrectas");
-        return response.json();
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.message || data?.error || "Credenciales incorrectas");
+        }
+        return data;
       })
       .then((data) => {
         setError("");
+        if (data.token) {
+          localStorage.setItem("multicatalogo_token", data.token);
+        }
         // La API devuelve el rol (admin | cliente) junto al correo (Tema 5)
         const rol: Rol = data.rol === "admin" ? "admin" : "cliente";
         login({ email: data.email, rol });
@@ -104,6 +110,13 @@ const Login = () => {
             {loading ? "Validando..." : "Iniciar Sesión"}
           </button>
         </form>
+
+        <div className="mt-4 text-center text-sm text-slate-600">
+          ¿No tienes una cuenta?{" "}
+          <Link to="/registro" className="font-semibold text-indigo-600 hover:text-indigo-800 transition">
+            Crear cuenta / Registrarse
+          </Link>
+        </div>
 
         <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-2">
           <p className="font-semibold text-slate-700">Cuentas de prueba:</p>

@@ -6,12 +6,22 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"multicatalogo-backend/config"
 	"multicatalogo-backend/models"
 	"multicatalogo-backend/routes"
 )
+
+// TestMain inicializa la conexión a PostgreSQL antes de ejecutar la suite de pruebas.
+func TestMain(m *testing.M) {
+	_, _ = config.ConnectDB()
+	code := m.Run()
+	_ = config.CloseDB()
+	os.Exit(code)
+}
 
 func setupTestApp() *fiber.App {
 	app := fiber.New()
@@ -219,5 +229,29 @@ func TestGetProductoPorIDNoEncontrado(t *testing.T) {
 
 	if apiErr.Status != http.StatusNotFound {
 		t.Errorf("APIError Status incorrecto: %d", apiErr.Status)
+	}
+}
+
+func TestGetRed(t *testing.T) {
+	app := setupTestApp()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/red", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Error en petición /api/red: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Esperaba status 200, obtuvo %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var red models.Referido
+	if err := json.Unmarshal(body, &red); err != nil {
+		t.Fatalf("Error decodificando estructura de red: %v", err)
+	}
+
+	if red.Nombre != "Tú" || len(red.Hijos) == 0 {
+		t.Errorf("Nodo raíz de red incorrecto: %+v", red)
 	}
 }

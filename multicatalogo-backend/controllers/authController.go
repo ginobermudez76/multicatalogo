@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"errors"
 	"strings"
 
 	// Importamos el framework Fiber para tener acceso al contexto (c *fiber.Ctx) de la petición HTTP.
@@ -35,13 +36,19 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Delegamos la validación de credenciales a la capa del repositorio.
+	// Delegamos la validación de credenciales a la capa del repositorio con PostgreSQL.
 	userAuth, err := repository.AuthenticateUser(req.Email, req.Password)
 	if err != nil {
-		// Si las credenciales son incorrectas, retornamos HTTP 401 con APIError.
-		return c.Status(fiber.StatusUnauthorized).JSON(models.APIError{
-			Status:  fiber.StatusUnauthorized,
-			Message: "Credenciales incorrectas",
+		if errors.Is(err, repository.ErrCredencialesInvalidas) {
+			return c.Status(fiber.StatusUnauthorized).JSON(models.APIError{
+				Status:  fiber.StatusUnauthorized,
+				Message: "Credenciales incorrectas",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
+			Status:  fiber.StatusInternalServerError,
+			Message: "Error interno al verificar credenciales en la base de datos",
+			Details: err.Error(),
 		})
 	}
 

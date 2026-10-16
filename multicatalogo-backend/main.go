@@ -4,17 +4,28 @@ package main
 import (
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	// Importamos el framework principal Fiber.
 	"github.com/gofiber/fiber/v2"
 	// Importamos el middleware CORS para gestionar la seguridad entre distintos puertos/dominios.
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	// Importamos nuestro paquete config para inicializar la conexión con PostgreSQL.
+	"multicatalogo-backend/config"
 	// Importamos nuestro propio paquete de rutas para delegarle la configuración de los endpoints.
 	"multicatalogo-backend/routes"
 )
 
 // func main es el punto de entrada de la aplicación en Go. Todo comienza a ejecutarse aquí.
 func main() {
+	// Inicializamos el pool de conexiones a la base de datos PostgreSQL (Fase 2)
+	if _, err := config.ConnectDB(); err != nil {
+		log.Fatalf("Error crítico al inicializar la base de datos: %v", err)
+	}
+	// Aseguramos el cierre ordenado de la base de datos al finalizar la aplicación
+	defer config.CloseDB()
+
 	// Instanciamos una nueva aplicación de Fiber y la guardamos en la variable 'app'.
 	app := fiber.New()
 
@@ -34,68 +45,19 @@ func main() {
 		port = "3001"
 	}
 
+	// Manejo de señales del sistema para apagado controlado (Graceful Shutdown)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("Señal de apagado recibida. Cerrando servidor HTTP...")
+		_ = app.Shutdown()
+	}()
+
 	log.Printf("Servidor backend Go escuchando en http://localhost:%s", port)
 	// Ponemos a la aplicación a escuchar peticiones en el puerto configurado.
-	log.Fatal(app.Listen(":" + port))
+	if err := app.Listen(":" + port); err != nil {
+		log.Printf("Servidor cerrado: %v", err)
+	}
 }
-
-
-
-
-
-// // main.go
-// package main
-
-// import (
-// 	"github.com/gofiber/fiber/v2"
-// 	"github.com/gofiber/fiber/v2/middleware/cors"
-// )
-
-// // Estructuras de datos
-// type LoginRequest struct {
-// 	Email    string `json:"email"`
-// 	Password string `json:"password"`
-// }
-
-// type Producto struct {
-// 	ID     int     `json:"id"`
-// 	Nombre string  `json:"nombre"`
-// 	Precio float64 `json:"precio"`
-// 	Img    string  `json:"img"`
-// }
-
-// func main() {
-// 	app := fiber.New()
-
-// 	// Middleware CORS para permitir peticiones desde React (Vite corre en el puerto 5173)
-// 	app.Use(cors.New(cors.Config{
-// 		AllowOrigins: "http://localhost:5173",
-// 		AllowHeaders: "Origin, Content-Type, Accept",
-// 	}))
-
-// 	// Endpoint para Login
-// 	app.Post("/api/login", func(c *fiber.Ctx) error {
-// 		var req LoginRequest
-// 		if err := c.BodyParser(&req); err != nil {
-// 			return c.Status(400).JSON(fiber.Map{"error": "Cuerpo de petición inválido"})
-// 		}
-
-// 		if req.Email == "admin@upse.edu.ec" && req.Password == "123456" {
-// 			return c.JSON(fiber.Map{"token": "fake-jwt-token-123", "email": req.Email})
-// 		}
-// 		return c.Status(401).JSON(fiber.Map{"error": "Credenciales incorrectas"})
-// 	})
-
-// 	// Endpoint para obtener Productos
-// 	app.Get("/api/productos", func(c *fiber.Ctx) error {
-// 		productos := []Producto{
-// 			{ID: 1, Nombre: "Serum Revitalizante", Precio: 45.00, Img: "https://picsum.photos/seed/serum/150"},
-// 			{ID: 2, Nombre: "Crema Hidratante Pro", Precio: 32.50, Img: "https://picsum.photos/seed/crema/150"},
-// 			{ID: 3, Nombre: "Tónico Purificante", Precio: 28.00, Img: "https://picsum.photos/seed/tonico/150"},
-// 			{ID: 4, Nombre: "Mascarilla Nocturna", Precio: 50.00, Img: "https://picsum.photos/seed/mascarilla/150"},
-// 		}
-// 		return c.JSON(productos)
-// 	})
-
-// 	app.Listen(":3000")
-// }

@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"errors"
 	"strconv"
 
 	// Importamos Fiber para manejar el contexto y respuestas HTTP.
@@ -12,10 +13,16 @@ import (
 	"multicatalogo-backend/repository"
 )
 
-// GetProductos es la función controladora encargada de devolver el catálogo completo de artículos.
+// GetProductos es la función controladora encargada de devolver el catálogo completo de artículos desde PostgreSQL.
 func GetProductos(c *fiber.Ctx) error {
-	productos := repository.GetAllProductos()
-	// Fiber convierte automáticamente el slice de estructuras a formato JSON y lo envía al cliente.
+	productos, err := repository.ObtenerProductos()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
+			Status:  fiber.StatusInternalServerError,
+			Message: "Error al recuperar productos de la base de datos",
+			Details: err.Error(),
+		})
+	}
 	return c.Status(fiber.StatusOK).JSON(productos)
 }
 
@@ -35,13 +42,19 @@ func GetProductoPorID(c *fiber.Ctx) error {
 		})
 	}
 
-	// Buscamos el producto en la capa de persistencia / repositorio.
-	producto, err := repository.GetProductoByID(id)
+	// Buscamos el producto en la base de datos a través del repositorio.
+	producto, err := repository.ObtenerProductoPorID(id)
 	if err != nil {
-		// Si no se encuentra el producto, retornamos HTTP 404 con APIError.
-		return c.Status(fiber.StatusNotFound).JSON(models.APIError{
-			Status:  fiber.StatusNotFound,
-			Message: "Producto no encontrado",
+		if errors.Is(err, repository.ErrProductoNoEncontrado) {
+			return c.Status(fiber.StatusNotFound).JSON(models.APIError{
+				Status:  fiber.StatusNotFound,
+				Message: "Producto no encontrado",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
+			Status:  fiber.StatusInternalServerError,
+			Message: "Error al consultar producto en la base de datos",
+			Details: err.Error(),
 		})
 	}
 

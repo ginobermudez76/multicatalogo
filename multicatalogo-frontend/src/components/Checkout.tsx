@@ -6,6 +6,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { checkoutApi } from '../services/api';
 
 interface DatosEnvio {
   nombre: string;
@@ -31,6 +32,7 @@ const Checkout = () => {
     metodoPago: METODOS_PAGO[0],
   });
   const [procesando, setProcesando] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
   // Si el carrito está vacío, mostramos un aviso en lugar del formulario
   if (cart.length === 0) {
@@ -48,28 +50,40 @@ const Checkout = () => {
     setDatos((prev) => ({ ...prev, [campo]: valor }));
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setProcesando(true);
+    setError("");
 
-    // Simulamos el procesamiento del pago con un pequeño retraso
-    setTimeout(() => {
-      const pedido = {
-        numero: `MC-${Date.now().toString().slice(-6)}`,
+    try {
+      const payload = {
+        cliente: {
+          nombre: datos.nombre,
+          email: datos.email,
+          direccion: datos.direccion,
+          ciudad: datos.ciudad,
+          telefono: datos.telefono,
+        },
+        metodoPago: datos.metodoPago,
         items: cart.map((item) => ({
+          id: item.id,
           nombre: item.nombre,
           cantidad: item.cantidad,
           precio: item.precio,
         })),
         total: totalPrice,
-        cliente: { nombre: datos.nombre, email: datos.email, ciudad: datos.ciudad },
-        fecha: new Date().toLocaleString("es-EC"),
       };
 
-      // Vaciamos el carrito y pasamos los datos del pedido a la confirmación
+      const pedidoConfirmado = await checkoutApi(payload);
+
+      // Vaciamos el carrito y pasamos los datos del pedido confirmados por el backend Go
       clearCart();
-      navigate("/confirmacion", { state: { pedido } });
-    }, 1200);
+      navigate("/confirmacion", { state: { pedido: pedidoConfirmado } });
+    } catch (err: unknown) {
+      console.error("Error en checkout:", err);
+      setError(err instanceof Error ? err.message : "Error al procesar el pedido con el servidor");
+      setProcesando(false);
+    }
   };
 
   return (
@@ -79,6 +93,12 @@ const Checkout = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ===== FORMULARIO DE ENVÍO ===== */}
         <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+              <span>{error}</span>
+              <button type="button" onClick={() => setError("")} className="font-bold ml-2">×</button>
+            </div>
+          )}
           <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
             <h2 className="text-lg font-bold text-slate-800 mb-4">Datos de Envío</h2>
 

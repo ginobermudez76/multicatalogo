@@ -274,3 +274,50 @@ export const getReporteResumenApi = async (desde = '', hasta = '') => {
   if (!response.ok) throw new Error('Error al obtener reporte resumen');
   return response.json();
 };
+
+export interface CheckoutPayload {
+  cliente: {
+    nombre: string;
+    email: string;
+    ciudad?: string;
+    direccion?: string;
+    telefono?: string;
+  };
+  metodoPago: string;
+  items: {
+    id?: number;
+    nombre: string;
+    cantidad: number;
+    precio: number;
+  }[];
+  total: number;
+}
+
+export interface PedidoConfirmadoResponse {
+  numero: string;
+  items: { nombre: string; cantidad: number; precio: number }[];
+  total: number;
+  cliente: { nombre: string; email: string; ciudad: string };
+  fecha: string;
+}
+
+/**
+ * Procesa la orden de compra en el backend Go con transacciones ACID y Goroutines (Fase 4 U2).
+ */
+export const checkoutApi = async (payload: CheckoutPayload): Promise<PedidoConfirmadoResponse> => {
+  const response = await fetch(`${API_BASE_URL}/api/checkout`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const errorMsg = data?.message || data?.error || `Error en el procesamiento del pedido (${response.status})`;
+    throw new Error(errorMsg);
+  }
+
+  return data as PedidoConfirmadoResponse;
+};
+

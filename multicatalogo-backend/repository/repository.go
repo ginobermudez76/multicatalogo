@@ -399,11 +399,34 @@ func (r *PostgresRepository) ActualizarComisionesRed(total float64, clienteEmail
 		return errors.New("conexión a base de datos no disponible")
 	}
 
-	// Atribuimos la venta al primer nodo de referidos de nivel 1 (ej. Ana García) para incrementar comisiones y ventas de la red
-	query := `UPDATE referidos SET ventas = ventas + $1 WHERE id = 1`
-	_, err := r.db.Exec(query, total)
-	if err != nil {
-		return fmt.Errorf("error al actualizar ventas en tabla referidos: %w", err)
+	// 1. Buscar si el cliente tiene un referido_id asignado en usuarios
+	var referidoID *int
+	err := r.db.QueryRow("SELECT referido_id FROM usuarios WHERE email = $1", clienteEmail).Scan(&referidoID)
+
+	actualizado := false
+	if err == nil && referidoID != nil && *referidoID > 0 {
+		// Recorrer la cadena ascendente de referidos (hasta 3 niveles) para actualizar sus ventas
+		currID := *referidoID
+		for nivel := 0; nivel < 3 && currID > 0; nivel++ {
+			var parentID *int
+			err := r.db.QueryRow("SELECT parent_id FROM referidos WHERE id = $1", currID).Scan(&parentID)
+			if err != nil || parentID == nil || *parentID <= 0 {
+				break
+			}
+			_, updateErr := r.db.Exec("UPDATE referidos SET ventas = ventas + $1 WHERE id = $2", total, *parentID)
+			if updateErr == nil {
+				actualizado = true
+			}
+			currID = *parentID
+		}
+	}
+
+	// 2. Si no tuvo línea ascendente (ej. compra directa del admin o invitado), actualizar el nodo principal para mantener KPIs coherentes
+	if !actualizado {
+		_, err = r.db.Exec("UPDATE referidos SET ventas = ventas + $1 WHERE id = 1", total)
+		if err != nil {
+			return fmt.Errorf("error al actualizar ventas en tabla referidos: %w", err)
+		}
 	}
 
 	return nil

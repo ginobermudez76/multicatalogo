@@ -56,8 +56,8 @@ CREATE TABLE IF NOT EXISTS pedido_items (
 
 -- Poblar tabla de Usuarios (contraseñas hasheadas con bcrypt - password: 123456)
 INSERT INTO usuarios (id, email, password, rol, nombre, activo) VALUES
-(1, 'admin@upse.edu.ec', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'Administrador', true),
-(2, 'cliente@upse.edu.ec', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'cliente', 'Cliente Demo', true)
+(1, 'admin@upse.edu.ec', '$2a$10$0vUBmUXA3M05YEHfNtvwr.6EkqHeVfqJ9p691fukoO4QEx4xl2ZhG', 'admin', 'Administrador', true),
+(2, 'cliente@upse.edu.ec', '$2a$10$0vUBmUXA3M05YEHfNtvwr.6EkqHeVfqJ9p691fukoO4QEx4xl2ZhG', 'cliente', 'Cliente Demo', true)
 ON CONFLICT (id) DO NOTHING;
 SELECT setval(pg_get_serial_sequence('usuarios', 'id'), coalesce(max(id), 1)) FROM usuarios;
 

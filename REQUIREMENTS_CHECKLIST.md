@@ -1,9 +1,9 @@
 # Lista de Verificación de Requerimientos (REQUIREMENTS_CHECKLIST)
 
 ## Estado General
-- **Hito actual:** Back-office MultiCatálogo Completo (Unidad 1 + Unidad 2).
-- **Última tarea completada:** Integración y verificación completa de Fases 0 a 7 del [PLAN_IMPLEMENTACION_U2.md](file:///c:/Users/Gino/Proyectos/mi-proyecto-spa/docs/PLAN_IMPLEMENTACION_U2.md): Registro con código de referido (`/registro`), CRUD Admin de Productos (`/admin/productos`), Gestión de Pedidos (`/admin/pedidos`), Historial de Compras (`/mis-pedidos`), Mi Red MLM con enlace copiable y Ledger auditable (`/mi-red`), Dashboard con reportes agregados SQL nativos (`/api/reportes/resumen`) y cliente API con Bearer Token automático.
-- **Siguiente tarea pendiente:** Despliegue, empaquetado de producción o inicio de módulos de Unidad 3 (SaaS multitenant / subdominios).
+- **Hito actual:** Progressive Web App (PWA) Completada e Integrada al Sistema.
+- **Última tarea completada:** Implementación de Fases 1 a 5 de PWA: `vite-plugin-pwa`, manifiesto web (`manifest.webmanifest`), precaching Workbox, caché en tiempo de ejecución para catálogo (`/api/productos`), iconos de alta resolución (192, 512, maskable, iOS), banner offline e instalador nativo interactivo (`PwaBanner.tsx`).
+- **Siguiente tarea pendiente:** Pruebas finales de usuario o transición a módulos de despliegue / Unidad 3.
 
 ---
 
@@ -91,3 +91,39 @@
 - [x] Middleware `RequireAuth` y `RequireAdmin` en todas las rutas operativas.
 - [x] Formato estándar de respuestas y manejo de errores con `APIError`.
 - [x] Suite de pruebas unitarias e integración en verde.
+
+---
+
+## 3. Transformación a Progressive Web App (PWA)
+
+### PWA Fase 1: Configuración Base y Generación del Web Manifest
+- [x] Instalación e integración de `vite-plugin-pwa` en `multicatalogo-frontend/vite.config.ts`.
+- [x] Configuración del Manifiesto de la aplicación (`manifest.webmanifest`):
+  - [x] Nombre: `MultiCatálogo`, Nombre corto: `MultiCatálogo`.
+  - [x] Colores temáticos: `theme_color` (`#4f46e5` - Indigo), `background_color` (`#f8fafc` - Slate 50).
+  - [x] Modo de visualización: `standalone` con `start_url: "/"`.
+- [x] Inclusión de meta etiquetas PWA en `index.html` (`theme-color`, `apple-mobile-web-app-capable`, `apple-touch-icon`).
+
+### PWA Fase 2: Iconografía y Recursos Visuales
+- [x] Generación de icono de alta resolución `pwa-192x192.png` para pantallas móviles estándar.
+- [x] Generación de icono de alta resolución `pwa-512x512.png` para splash screen y pantallas de alta densidad.
+- [x] Creación de variante con propósito `maskable` para integración adaptativa en Android.
+- [x] Generación de `apple-touch-icon.png` para dispositivos iOS.
+
+### PWA Fase 3: Service Worker y Estrategias de Caché Offline (Workbox)
+- [x] Registro y ciclo de vida del Service Worker mediante `virtual:pwa-register`.
+- [x] Estrategia de Precaching para todos los assets estáticos (HTML, JS bundles, CSS compilado, fuentes de Google Fonts y SVG).
+- [x] Estrategia `StaleWhileRevalidate` o `NetworkFirst` para endpoints del catálogo (`/api/productos` y `/api/productos/:id`).
+- [x] Fallback offline con vista o banner informativo cuando no hay conexión a internet (`PwaBanner.tsx`).
+
+### PWA Fase 4: Experiencia de Instalación y Notificaciones en la UI
+- [x] Captura del evento de instalación nativo `beforeinstallprompt`.
+- [x] Componente UI interactivo con botón e interfaz en `PwaBanner.tsx` para invitar al usuario a instalar la app.
+- [x] Detección y manejo del modo `standalone` (ocultar botón si la app ya fue instalada).
+- [x] Notificación de actualización disponible (Service Worker Update Prompt) con recarga automática/instantánea.
+
+### PWA Fase 5: Auditoría, Pruebas y Validación PWA
+- [x] Validación de compilación de producción con Vite (`npm run build`).
+- [x] Generación y verificación de `sw.js` y `manifest.webmanifest` en `dist/`.
+- [x] Verificación de criterios de instalabilidad según estándares de Google Chrome / Lighthouse PWA.
+- [x] Prueba de navegación y visualización de catálogo en modo desconectado (Offline Mode).

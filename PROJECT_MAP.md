@@ -58,6 +58,7 @@ SPA interactiva para catálogo multinivel y back-office operacional completo.
   - `AdminPedidos.tsx`: Gestión y transición de estados de órdenes de compra.
   - `MiRed.tsx`: Visualización jerárquica de la red propia, link copiable de referido (`?ref=CODIGO`) y ledger de comisiones.
   - `Dashboard.tsx`: KPIs de negocio conectados con `/api/reportes/resumen` de la base de datos.
+  - `PwaBanner.tsx`: Detección de conectividad offline y modal nativo de instalación PWA (`beforeinstallprompt`).
   - `Layout.tsx`, `Navbar.tsx`, `Sidebar.tsx`: Estructura responsive con navegación por perfil de rol (`admin`/`cliente`).
   - `ProtectedRoute.tsx`: Guardas de rutas por autenticación y roles.
 - `src/context/`:

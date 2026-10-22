@@ -15,6 +15,7 @@ import Registro from './components/Registro';
 import MisPedidos from './components/MisPedidos';
 import AdminProductos from './components/AdminProductos';
 import AdminPedidos from './components/AdminPedidos';
+import { PwaBanner } from './components/PwaBanner';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -63,6 +64,7 @@ function App() {
     <AuthProvider> {/* Proveedor de Autenticación */}
       <CartBoundary> {/* Proveedor del Carrito (uno por usuario) */}
         <BrowserRouter>
+          <PwaBanner />
           <Routes>
             {/* Rutas públicas */}
             <Route path="/login" element={<Login />} />

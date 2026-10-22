@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+vendor/
+
+# Producción y compilados
+dist/
+dist-ssr/
+build/
+dev-dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Variables de entorno y secretos
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Archivos de caché, IDEs y herramientas de IA
+.codegraph/
+.gemini/
+.idea/
+.vscode/
+*.sw?
+*.suo
+.DS_Store
+Thumbs.db
+*.log

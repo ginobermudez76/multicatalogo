@@ -60,3 +60,63 @@ func (uc *UsuarioController) Register(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(usuario)
 }
+
+// ListarUsuarios devuelve la lista paginada de usuarios para el admin.
+func (uc *UsuarioController) ListarUsuarios(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+	q := c.Query("q", "")
+
+	usuarios, total, err := uc.repo.ObtenerUsuariosAdmin(q, page, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
+			Status:  fiber.StatusInternalServerError,
+			Message: "Error al listar usuarios",
+			Details: err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(models.PaginaResponse{
+		Data:  usuarios,
+		Page:  page,
+		Limit: limit,
+		Total: total,
+	})
+}
+
+// ActualizarUsuario permite al administrador cambiar el rol o estado activo de un usuario.
+func (uc *UsuarioController) ActualizarUsuario(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
+			Status:  fiber.StatusBadRequest,
+			Message: "El parámetro ID debe ser un número entero válido",
+		})
+	}
+
+	var req models.ActualizarUsuarioRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
+			Status:  fiber.StatusBadRequest,
+			Message: "Cuerpo de petición inválido",
+			Details: err.Error(),
+		})
+	}
+
+	usuario, err := uc.repo.ActualizarUsuarioAdmin(id, req.Rol, req.Activo)
+	if err != nil {
+		if strings.Contains(err.Error(), "no encontrado") {
+			return c.Status(fiber.StatusNotFound).JSON(models.APIError{
+				Status:  fiber.StatusNotFound,
+				Message: "Usuario no encontrado",
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(models.APIError{
+			Status:  fiber.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(usuario)
+}
+

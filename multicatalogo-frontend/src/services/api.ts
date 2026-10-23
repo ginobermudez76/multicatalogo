@@ -321,3 +321,112 @@ export const checkoutApi = async (payload: CheckoutPayload): Promise<PedidoConfi
   return data as PedidoConfirmadoResponse;
 };
 
+export interface UsuarioAdminItem {
+  id: number;
+  email: string;
+  rol: string;
+  nombre?: string;
+  activo: boolean;
+  referido_id?: number;
+  creado_en?: string;
+}
+
+export interface UsuariosAdminResponse {
+  data: UsuarioAdminItem[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+/**
+ * Obtiene la lista de usuarios para el panel de administración.
+ */
+export const getUsuariosAdminApi = async (page = 1, limit = 20, q = ''): Promise<UsuariosAdminResponse> => {
+  const url = `${API_BASE_URL}/api/usuarios?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+  const response = await fetch(url, { headers: getAuthHeaders() });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Error al obtener usuarios');
+  }
+  return response.json();
+};
+
+/**
+ * Actualiza el rol o el estado activo de un usuario (Admin).
+ */
+export const patchUsuarioAdminApi = async (id: number, payload: { rol?: string; activo?: boolean }): Promise<UsuarioAdminItem> => {
+  const response = await fetch(`${API_BASE_URL}/api/usuarios/${id}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Error al actualizar usuario');
+  }
+  return response.json();
+};
+
+export interface DeudaDistribuidorItem {
+  referido_id: number;
+  nombre: string;
+  codigo: string;
+  total_pendiente: number;
+  num_comisiones: number;
+}
+
+export interface LiquidacionItem {
+  id: number;
+  referido_id: number;
+  referido_nombre?: string;
+  total: number;
+  estado: string;
+  creado_en: string;
+  pagada_en?: string;
+}
+
+/**
+ * Obtiene la deuda de comisiones agrupada por distribuidor (Fase 5 U2).
+ */
+export const getDeudaDistribuidoresApi = async (): Promise<DeudaDistribuidorItem[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/liquidaciones/deuda`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Error al obtener deuda de distribuidores');
+  }
+  return response.json();
+};
+
+/**
+ * Obtiene el historial de todas las liquidaciones realizadas (Admin).
+ */
+export const getLiquidacionesAdminApi = async (): Promise<LiquidacionItem[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/liquidaciones`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Error al obtener liquidaciones');
+  }
+  return response.json();
+};
+
+/**
+ * Procesa la liquidación de comisiones acumuladas de un distribuidor (Admin).
+ */
+export const postCrearLiquidacionApi = async (referidoId: number): Promise<LiquidacionItem> => {
+  const response = await fetch(`${API_BASE_URL}/api/liquidaciones`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ referido_id: referidoId }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Error al crear liquidación');
+  }
+  return response.json();
+};
+
+

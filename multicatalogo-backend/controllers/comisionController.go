@@ -173,3 +173,18 @@ func (cc *ComisionController) MisLiquidaciones(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(liquidaciones)
 }
+
+// DeudaDistribuidores devuelve el resumen de comisiones pendientes agrupadas por distribuidor (Fase 5).
+func (cc *ComisionController) DeudaDistribuidores(c *fiber.Ctx) error {
+	deudas, err := cc.repo.ObtenerDeudaDistribuidores()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.APIError{
+			Status:  fiber.StatusInternalServerError,
+			Message: "Error al obtener deuda de distribuidores",
+			Details: err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(deudas)
+}
+

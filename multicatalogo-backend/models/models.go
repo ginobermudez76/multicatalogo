@@ -141,12 +141,28 @@ type Comision struct {
 
 // Liquidacion representa una liquidación de comisiones a un distribuidor.
 type Liquidacion struct {
-	ID         int       `json:"id"`
-	ReferidoID int       `json:"referido_id"`
-	Total      float64   `json:"total"`
-	Estado     string    `json:"estado"`
-	CreadoEn   time.Time `json:"creado_en"`
-	PagadaEn   *time.Time `json:"pagada_en,omitempty"`
+	ID             int        `json:"id"`
+	ReferidoID     int        `json:"referido_id"`
+	ReferidoNombre string     `json:"referido_nombre,omitempty"`
+	Total          float64    `json:"total"`
+	Estado         string     `json:"estado"`
+	CreadoEn       time.Time  `json:"creado_en"`
+	PagadaEn       *time.Time `json:"pagada_en,omitempty"`
+}
+
+// DeudaDistribuidor agrupa las comisiones pendientes acumuladas por cada distribuidor.
+type DeudaDistribuidor struct {
+	ReferidoID     int     `json:"referido_id"`
+	Nombre         string  `json:"nombre"`
+	Codigo         string  `json:"codigo"`
+	TotalPendiente float64 `json:"total_pendiente"`
+	NumComisiones  int     `json:"num_comisiones"`
+}
+
+// ActualizarUsuarioRequest define los campos modificables de un usuario por el admin.
+type ActualizarUsuarioRequest struct {
+	Rol    *string `json:"rol,omitempty"`
+	Activo *bool   `json:"activo,omitempty"`
 }
 
 // RegisterRequest define la estructura para registro de usuarios.

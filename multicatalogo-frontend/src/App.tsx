@@ -15,6 +15,8 @@ import Registro from './components/Registro';
 import MisPedidos from './components/MisPedidos';
 import AdminProductos from './components/AdminProductos';
 import AdminPedidos from './components/AdminPedidos';
+import AdminUsuarios from './components/AdminUsuarios';
+import AdminLiquidaciones from './components/AdminLiquidaciones';
 import { PwaBanner } from './components/PwaBanner';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -73,11 +75,13 @@ function App() {
             {/* Rutas protegidas (requieren login) */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Layout />}>
-                {/* Solo administrador: Dashboard, Gestión de Productos y Gestión de Pedidos */}
+                {/* Solo administrador: Dashboard, Productos, Pedidos, Liquidaciones y Usuarios */}
                 <Route element={<AdminRoute />}>
                   <Route index element={<Dashboard />} />
                   <Route path="admin/productos" element={<AdminProductos />} />
                   <Route path="admin/pedidos" element={<AdminPedidos />} />
+                  <Route path="admin/liquidaciones" element={<AdminLiquidaciones />} />
+                  <Route path="admin/usuarios" element={<AdminUsuarios />} />
                 </Route>
 
                 {/* Ambos roles (cliente y admin): flujo de compra, red propia y pedidos */}

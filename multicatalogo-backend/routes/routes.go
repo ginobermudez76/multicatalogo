@@ -86,9 +86,15 @@ func SetupRoutes(app *fiber.App, deps ...Dependencies) {
 	// 9. Endpoints de liquidaciones - Fase 5
 	app.Post("/api/liquidaciones", middleware.RequireAuth, middleware.RequireAdmin, d.ComisionCtrl.CrearLiquidacion)
 	app.Get("/api/liquidaciones", middleware.RequireAuth, middleware.RequireAdmin, d.ComisionCtrl.ListarLiquidaciones)
+	app.Get("/api/liquidaciones/deuda", middleware.RequireAuth, middleware.RequireAdmin, d.ComisionCtrl.DeudaDistribuidores)
 	app.Get("/api/liquidaciones/mias", middleware.RequireAuth, d.ComisionCtrl.MisLiquidaciones)
 
-	// 10. Endpoints de reportes - Fase 6
+	// 10. Endpoints de gestión de usuarios (Admin)
+	adminUsuarios := app.Group("/api/usuarios", middleware.RequireAuth, middleware.RequireAdmin)
+	adminUsuarios.Get("", d.UsuarioCtrl.ListarUsuarios)
+	adminUsuarios.Patch("/:id", d.UsuarioCtrl.ActualizarUsuario)
+
+	// 11. Endpoints de reportes - Fase 6
 	app.Get("/api/reportes/resumen", middleware.RequireAuth, middleware.RequireAdmin, d.ReporteCtrl.Resumen)
 	app.Get("/api/reportes/top-productos", middleware.RequireAuth, middleware.RequireAdmin, d.ReporteCtrl.TopProductos)
 	app.Get("/api/reportes/top-referidos", middleware.RequireAuth, middleware.RequireAdmin, d.ReporteCtrl.TopReferidos)

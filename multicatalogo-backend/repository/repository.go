@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -49,6 +50,10 @@ type DBRepository interface {
 	CrearLiquidacion(referidoID int) (*models.Liquidacion, error)
 	ObtenerLiquidaciones() ([]models.Liquidacion, error)
 	ObtenerLiquidacionesUsuario(usuarioID int) ([]models.Liquidacion, error)
+	ObtenerDeudaDistribuidores() ([]models.DeudaDistribuidor, error)
+	// Gestión de Usuarios (Admin)
+	ObtenerUsuariosAdmin(q string, page, limit int) ([]models.Usuario, int, error)
+	ActualizarUsuarioAdmin(id int, rol *string, activo *bool) (*models.Usuario, error)
 	// Fase 6: Reportes
 	ObtenerReporteResumen(desde, hasta string) (*models.ReporteResumen, error)
 	ObtenerTopProductos(limit int) ([]models.TopProducto, error)
@@ -1059,13 +1064,18 @@ func (r *PostgresRepository) CrearLiquidacion(referidoID int) (*models.Liquidaci
 	}, nil
 }
 
-// ObtenerLiquidaciones obtiene todas las liquidaciones (Fase 5).
+// ObtenerLiquidaciones obtiene todas las liquidaciones con el nombre del referido (Fase 5).
 func (r *PostgresRepository) ObtenerLiquidaciones() ([]models.Liquidacion, error) {
 	if r.db == nil {
 		return nil, errors.New("conexión a base de datos no disponible")
 	}
 
-	query := `SELECT id, referido_id, total, estado, creado_en, pagada_en FROM liquidaciones ORDER BY creado_en DESC`
+	query := `
+		SELECT l.id, l.referido_id, COALESCE(r.nombre, 'Distribuidor ' || l.referido_id), l.total, l.estado, l.creado_en, l.pagada_en
+		FROM liquidaciones l
+		LEFT JOIN referidos r ON l.referido_id = r.id
+		ORDER BY l.creado_en DESC
+	`
 	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error al consultar liquidaciones: %w", err)
@@ -1075,7 +1085,7 @@ func (r *PostgresRepository) ObtenerLiquidaciones() ([]models.Liquidacion, error
 	liquidaciones := make([]models.Liquidacion, 0)
 	for rows.Next() {
 		var l models.Liquidacion
-		if err := rows.Scan(&l.ID, &l.ReferidoID, &l.Total, &l.Estado, &l.CreadoEn, &l.PagadaEn); err != nil {
+		if err := rows.Scan(&l.ID, &l.ReferidoID, &l.ReferidoNombre, &l.Total, &l.Estado, &l.CreadoEn, &l.PagadaEn); err != nil {
 			return nil, fmt.Errorf("error al escanear liquidación: %w", err)
 		}
 		liquidaciones = append(liquidaciones, l)
@@ -1090,7 +1100,13 @@ func (r *PostgresRepository) ObtenerLiquidacionesUsuario(usuarioID int) ([]model
 		return nil, errors.New("conexión a base de datos no disponible")
 	}
 
-	query := `SELECT id, referido_id, total, estado, creado_en, pagada_en FROM liquidaciones WHERE referido_id = $1 ORDER BY creado_en DESC`
+	query := `
+		SELECT l.id, l.referido_id, COALESCE(r.nombre, 'Distribuidor ' || l.referido_id), l.total, l.estado, l.creado_en, l.pagada_en
+		FROM liquidaciones l
+		LEFT JOIN referidos r ON l.referido_id = r.id
+		WHERE l.referido_id = $1
+		ORDER BY l.creado_en DESC
+	`
 	rows, err := r.db.Query(query, usuarioID)
 	if err != nil {
 		return nil, fmt.Errorf("error al consultar liquidaciones: %w", err)
@@ -1100,13 +1116,152 @@ func (r *PostgresRepository) ObtenerLiquidacionesUsuario(usuarioID int) ([]model
 	liquidaciones := make([]models.Liquidacion, 0)
 	for rows.Next() {
 		var l models.Liquidacion
-		if err := rows.Scan(&l.ID, &l.ReferidoID, &l.Total, &l.Estado, &l.CreadoEn, &l.PagadaEn); err != nil {
+		if err := rows.Scan(&l.ID, &l.ReferidoID, &l.ReferidoNombre, &l.Total, &l.Estado, &l.CreadoEn, &l.PagadaEn); err != nil {
 			return nil, fmt.Errorf("error al escanear liquidación: %w", err)
 		}
 		liquidaciones = append(liquidaciones, l)
 	}
 
 	return liquidaciones, nil
+}
+
+// ObtenerDeudaDistribuidores agrupa las comisiones pendientes acumuladas por distribuidor (Fase 5).
+func (r *PostgresRepository) ObtenerDeudaDistribuidores() ([]models.DeudaDistribuidor, error) {
+	if r.db == nil {
+		return nil, errors.New("conexión a base de datos no disponible")
+	}
+
+	query := `
+		SELECT c.referido_id, COALESCE(r.nombre, 'Distribuidor ' || c.referido_id), COALESCE(r.codigo, ''), SUM(c.monto) AS total_pendiente, COUNT(c.id) AS num_comisiones
+		FROM comisiones c
+		LEFT JOIN referidos r ON c.referido_id = r.id
+		WHERE c.estado = 'pendiente'
+		GROUP BY c.referido_id, r.nombre, r.codigo
+		ORDER BY total_pendiente DESC
+	`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error al consultar deuda de distribuidores: %w", err)
+	}
+	defer rows.Close()
+
+	deudas := make([]models.DeudaDistribuidor, 0)
+	for rows.Next() {
+		var d models.DeudaDistribuidor
+		if err := rows.Scan(&d.ReferidoID, &d.Nombre, &d.Codigo, &d.TotalPendiente, &d.NumComisiones); err != nil {
+			return nil, fmt.Errorf("error al escanear deuda de distribuidor: %w", err)
+		}
+		deudas = append(deudas, d)
+	}
+
+	return deudas, nil
+}
+
+// ObtenerUsuariosAdmin lista todos los usuarios con paginación y búsqueda (Admin).
+func (r *PostgresRepository) ObtenerUsuariosAdmin(q string, page, limit int) ([]models.Usuario, int, error) {
+	if r.db == nil {
+		return nil, 0, errors.New("conexión a base de datos no disponible")
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	var whereClause string
+	args := []interface{}{}
+	argCount := 1
+
+	if strings.TrimSpace(q) != "" {
+		whereClause = fmt.Sprintf("WHERE nombre ILIKE $%d OR email ILIKE $%d OR rol ILIKE $%d", argCount, argCount, argCount)
+		args = append(args, "%"+strings.TrimSpace(q)+"%")
+		argCount++
+	}
+
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM usuarios %s", whereClause)
+	var total int
+	err := r.db.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al contar usuarios: %w", err)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, email, rol, COALESCE(nombre, ''), COALESCE(activo, true), referido_id, COALESCE(creado_en, NOW())
+		FROM usuarios
+		%s
+		ORDER BY id ASC
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argCount, argCount+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error al consultar usuarios: %w", err)
+	}
+	defer rows.Close()
+
+	usuarios := make([]models.Usuario, 0)
+	for rows.Next() {
+		var u models.Usuario
+		if err := rows.Scan(&u.ID, &u.Email, &u.Rol, &u.Nombre, &u.Activo, &u.ReferidoID, &u.CreadoEn); err != nil {
+			return nil, 0, fmt.Errorf("error al escanear usuario: %w", err)
+		}
+		usuarios = append(usuarios, u)
+	}
+
+	return usuarios, total, nil
+}
+
+// ActualizarUsuarioAdmin actualiza rol o estado activo de un usuario (Admin).
+func (r *PostgresRepository) ActualizarUsuarioAdmin(id int, rol *string, activo *bool) (*models.Usuario, error) {
+	if r.db == nil {
+		return nil, errors.New("conexión a base de datos no disponible")
+	}
+
+	setClauses := make([]string, 0)
+	args := []interface{}{}
+	argIndex := 1
+
+	if rol != nil && *rol != "" {
+		if *rol != "admin" && *rol != "cliente" {
+			return nil, errors.New("el rol debe ser 'admin' o 'cliente'")
+		}
+		setClauses = append(setClauses, fmt.Sprintf("rol = $%d", argIndex))
+		args = append(args, *rol)
+		argIndex++
+	}
+
+	if activo != nil {
+		setClauses = append(setClauses, fmt.Sprintf("activo = $%d", argIndex))
+		args = append(args, *activo)
+		argIndex++
+	}
+
+	if len(setClauses) == 0 {
+		return nil, errors.New("no se especificaron campos para actualizar")
+	}
+
+	args = append(args, id)
+	query := fmt.Sprintf(`
+		UPDATE usuarios
+		SET %s
+		WHERE id = $%d
+		RETURNING id, email, rol, COALESCE(nombre, ''), COALESCE(activo, true), referido_id, COALESCE(creado_en, NOW())
+	`, strings.Join(setClauses, ", "), argIndex)
+
+	var u models.Usuario
+	err := r.db.QueryRow(query, args...).Scan(&u.ID, &u.Email, &u.Rol, &u.Nombre, &u.Activo, &u.ReferidoID, &u.CreadoEn)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("usuario no encontrado")
+		}
+		return nil, fmt.Errorf("error al actualizar usuario: %w", err)
+	}
+
+	return &u, nil
 }
 
 // ObtenerReporteResumen genera KPIs de ventas y comisiones (Fase 6).
